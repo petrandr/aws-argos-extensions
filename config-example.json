@@ -1,0 +1,6 @@
+{
+  "sqs_monitor": [
+    {"name": "Queue1", "url": "https://sqs.example.com/queue1", "threshold": 10},
+    {"name": "Queue2", "url": "https://sqs.example.com/queue2", "threshold": 5}
+  ]
+}
