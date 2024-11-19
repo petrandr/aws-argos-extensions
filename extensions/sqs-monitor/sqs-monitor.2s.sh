@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e  # Exit immediately if a command exits with a non-zero status
 
 # Configuration: Path to the configuration file containing SQS queue details
 CONFIG_FILE=~/.config/aws-argos-extensions/config.json
@@ -10,8 +9,22 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
     exit 1
 fi
 
-# Source the shared SQS utility functions (e.g., reusable functions for SQS operations)
-source ~/.config/argos/sqs-utils.sh
+# Check if AWS CLI is installed
+if ! command -v aws &>/dev/null; then
+    echo "Error"
+    echo "AWS CLI is not installed. Please install it to use this script."
+    exit 1
+fi
+
+# Check if AWS CLI is configured
+if ! aws sts get-caller-identity &>/dev/null; then
+    echo "Error"
+    echo "AWS CLI is not configured. Please configure it using 'aws configure'."
+    exit 1
+fi
+
+# Load current settings
+NOTIFICATIONS_ENABLED=$(jq -r '.notifications_enabled' < "$CONFIG_FILE")
 
 # Extract the SQS queue details (name, URL, and threshold) from the config file
 # The JSON keys under 'sqs_monitor' are converted to tab-separated values
@@ -57,7 +70,7 @@ while IFS=$'\t' read -r QUEUE_NAME QUEUE_URL THRESHOLD; do
         DROPDOWN_ALERTS+="<span color='red'>$QUEUE_NAME</span>: <span color='red'>Error fetching data</span>\n"
         ALERT_COUNT=$((ALERT_COUNT + 1))  # Increment the alert count
         TOP_BAR_COLOR="red"  # Highlight the top bar as red to indicate an issue
-        if should_notify "$QUEUE_NAME"; then
+        if "$NOTIFICATIONS_ENABLED" == "true" && should_notify "$QUEUE_NAME"; then
             # Send a critical notification for the error
             notify-send "SQS Alert: $QUEUE_NAME" "Error fetching data" -u critical
         fi
@@ -74,7 +87,7 @@ while IFS=$'\t' read -r QUEUE_NAME QUEUE_URL THRESHOLD; do
         DROPDOWN_ALERTS+="&#x200B;<span color='red'>$QUEUE_NAME: Visible: $VISIBLE, In-flight: $IN_FLIGHT</span>\n"
         ALERT_COUNT=$((ALERT_COUNT + 1))  # Increment the alert count
         TOP_BAR_COLOR="red"  # Highlight the top bar as red
-        if should_notify "$QUEUE_NAME"; then
+        if "$NOTIFICATIONS_ENABLED" == "true" && should_notify "$QUEUE_NAME"; then
             # Send a critical notification for the threshold breach
             notify-send "SQS Alert: $QUEUE_NAME" "Visible: $VISIBLE, In-flight: $IN_FLIGHT (Threshold: $THRESHOLD)" -u critical
         fi
@@ -93,7 +106,7 @@ else
 fi
 
 # Display the top bar with updated text and color
-print "$TOP_BAR_TEXT" "$TOP_BAR_COLOR" | sed 's/$/ | refresh=true/'
+echo "<span color='$TOP_BAR_COLOR'>$TOP_BAR_TEXT</span> | refresh=true"
 
 # Display the dropdown content
 echo "---"
